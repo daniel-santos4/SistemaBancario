@@ -1,26 +1,18 @@
 package br.gov.caixa;
 
+import br.gov.caixa.contas.*;
+import br.gov.caixa.operacoes.*;
+
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Date;
 
 public class Banco {
     public static final Banco CAIXA = new Banco();
     public enum TipoConta {CORRENTE, POUPANCA, INVESTIMENTO}
-    public enum Operacao {SAQUE, DEPOSITO, TRANSFERENCIA, INVESTIMENTO, CONSULTA_SALDO}
     private final ArrayList<Usuario> clientes = new ArrayList<>();
     private final ArrayList<Conta> contasCorrentes = new ArrayList<>();
     private final ArrayList<Conta> contasPoupancas = new ArrayList<>();
     private final ArrayList<Conta> contasInvestimento = new ArrayList<>();
-    public record Transacao(
-            Date data,
-            Operacao tipo,
-            double valorPretendido,
-            double valorReal,
-            Usuario usuarioOrigem,
-            Usuario usuarioDestino,
-            String observacao
-    ) { }
 
     public Banco() {
         new Thread(() -> {
@@ -97,16 +89,11 @@ public class Banco {
 
     public void sacar(long idConta, TipoConta tipo, double valor) {
         Conta conta = getConta(idConta, tipo);
-        double valorReal = valor;
         if (conta != null) {
             if (conta.getStatus() == Conta.Situacao.ATIVA) {
                 Usuario titular = getUsuario(conta.getIdUsuario());
-                if (titular.getClassificacao() == Usuario.Tipo.PJ) {
-                    valorReal = valor * 1.005;
-                }
-                Transacao saque = new Transacao(new Date(), Banco.Operacao.SAQUE, valor, valorReal, getUsuario(conta.idUsuario),
-                        null, "");
-                if (conta.debitar(saque)) {
+                Saque saque = new Saque(conta, valor, titular);
+                if (saque.executar()) {
                     System.out.println("Saque realizado com sucesso!");
                 } else {
                     System.out.println("Saldo insuficiente!");
@@ -123,8 +110,8 @@ public class Banco {
         Conta conta = getConta(idConta, tipo);
         if (conta != null) {
             if (conta.getStatus() == Conta.Situacao.ATIVA) {
-                Transacao deposito = new Transacao(new Date(), Banco.Operacao.DEPOSITO, valor, valor, null, getUsuario(conta.idUsuario), "");
-                conta.creditar(deposito);
+                Deposito deposito = new Deposito(conta, valor, getUsuario(conta.getIdUsuario()));
+                deposito.executar();
                 System.out.println("Depósito realizado com sucesso!");
             } else {
                 System.out.println("Conta inativa!");
@@ -137,21 +124,16 @@ public class Banco {
     public void transferir(long idContaOrigem, TipoConta tipoOrigem, long idContaDestino, TipoConta tipoDestino, double valor) {
         Conta contaOrigem = getConta(idContaOrigem, tipoOrigem);
         Conta contaDestino = getConta(idContaDestino, tipoDestino);
-        double valorReal = valor;
+
         if (contaOrigem != null && contaDestino != null) {
             if (contaOrigem.getStatus() == Conta.Situacao.ATIVA) {
                 if (contaDestino.getStatus() == Conta.Situacao.ATIVA) {
                     Usuario usuarioOrigem = getUsuario(contaOrigem.getIdUsuario());
                     Usuario usuarioDestino = getUsuario(contaDestino.getIdUsuario());
-                    if (usuarioOrigem.getClassificacao() == Usuario.Tipo.PJ) {
-                        valorReal = valor * 1.005;
-                    }
+
                     if (usuarioDestino != null && usuarioDestino.getStatus() == Usuario.Situacao.ATIVO) {
-                        String observacao = tipoDestino == TipoConta.CORRENTE ? "Crédito em Conta Corrente" : "";
-                        Transacao transferencia = new Transacao(new Date(), Banco.Operacao.TRANSFERENCIA, valor, valorReal,
-                                getUsuario(contaOrigem.getIdUsuario()), usuarioDestino, observacao);
-                        if (contaOrigem.debitar(transferencia)) {
-                            contaDestino.creditar(transferencia);
+                        Transferencia transferencia = new Transferencia(contaOrigem, contaDestino, valor, usuarioOrigem, usuarioDestino);
+                        if (transferencia.executar()) {
                             System.out.println("Transferência realizada com sucesso!");
                         } else {
                             System.out.println("Saldo insuficiente!");
@@ -174,9 +156,9 @@ public class Banco {
         Conta conta = getConta(id, tipo);
         if (conta != null) {
             if (conta.getStatus() == Conta.Situacao.ATIVA) {
-                Transacao consulta = new Transacao(new Date(), Banco.Operacao.CONSULTA_SALDO, 0.0, 0.0,
-                        getUsuario(conta.getIdUsuario()), null,"");
-                System.out.printf("Saldo: R$ %.2f\n", conta.consultarSaldo(consulta));
+                Consulta consulta = new Consulta(conta, getUsuario(conta.getIdUsuario()));
+                consulta.executar();
+                System.out.printf("Saldo: R$ %.2f\n", conta.getSaldo());
             } else {
                 System.out.println("Conta inativa!");
             }
@@ -188,31 +170,33 @@ public class Banco {
     public ContaInvestimento investir(long id, double valor) {
         ContaCorrente contaOrigem = (ContaCorrente) getConta(id, TipoConta.CORRENTE);
         if (contaOrigem != null) {
-            if (contaOrigem.getStatus() == Conta.Situacao.ATIVA) {
-                Usuario usuario = getUsuario(contaOrigem.getIdUsuario());
-                ContaInvestimento contaDestino = (ContaInvestimento) getConta(usuario, TipoConta.INVESTIMENTO);
-                if (usuario.getStatus() == Usuario.Situacao.ATIVO) {
-                    if (contaDestino == null && contaOrigem.getSaldo() >= valor) {
-                        contaDestino = this.abrirContaInvestimento(usuario.getId());
-                    }
-                    if (contaDestino.getStatus() == Conta.Situacao.ATIVA) {
-                        Transacao investimento = new Transacao(new Date(), Banco.Operacao.INVESTIMENTO, valor, valor,
-                                usuario, usuario, "");
-                        if (contaOrigem.investir(investimento)) {
-                            contaDestino.creditar(investimento);
-                        } else {
-                            System.out.println("Saldo insuficiente!");
+            if (contaOrigem.getSaldo() >= valor) {
+                if (contaOrigem.getStatus() == Conta.Situacao.ATIVA) {
+                    Usuario usuario = getUsuario(contaOrigem.getIdUsuario());
+                    ContaInvestimento contaDestino = (ContaInvestimento) getConta(usuario, TipoConta.INVESTIMENTO);
+                    if (usuario.getStatus() == Usuario.Situacao.ATIVO) {
+                        if (contaDestino == null) {
+                            contaDestino = this.abrirContaInvestimento(usuario.getId());
                         }
+                        if (contaDestino.getStatus() == Conta.Situacao.ATIVA) {
+                            Investimento investimento = new Investimento(contaOrigem, contaDestino, valor, usuario);
+                            if (investimento.executar()) {
+                                System.out.println("Investimento realizada com sucesso!");
+                            } else {
+                                System.out.println("Não foi possível realizar a operação!");
+                            }
+                        } else {
+                            System.out.println("Conta investimento inativa!");
+                        }
+                        return contaDestino;
                     } else {
-                        System.out.println("Conta investimento inativa!");
+                        System.out.println("Cliente inativo.");
                     }
                 } else {
-                    contaDestino = null;
-                    System.out.println("Cliente inativo.");
+                    System.out.println("Conta corrente inativa!");
                 }
-                return contaDestino;
             } else {
-                System.out.println("Conta corrente inativa!");
+                System.out.println("Saldo insuficiente!");
             }
         } else {
             System.out.println("Conta inválida!");
@@ -314,7 +298,7 @@ public class Banco {
         Banco.CAIXA.consultarSaldo(investimentoPF.getId(), TipoConta.INVESTIMENTO);
         System.out.println(investimentoPF.getSaldo());
         Banco.CAIXA.consultarSaldo(investimentoPJ.getId(), TipoConta.INVESTIMENTO);
-        for (Transacao registro: contaPF.getHistorico()) {
+        for (Operacao.Transacao registro: contaPF.getHistorico()) {
             System.out.println(registro);
         }
     }

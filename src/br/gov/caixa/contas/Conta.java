@@ -1,8 +1,8 @@
-package br.gov.caixa;
+package br.gov.caixa.contas;
 
 import java.util.ArrayList;
 import java.util.Date;
-import br.gov.caixa.Banco.Transacao;
+import br.gov.caixa.operacoes.Operacao.Transacao;
 
 public class Conta {
     public enum Situacao {ATIVA, INATIVA}

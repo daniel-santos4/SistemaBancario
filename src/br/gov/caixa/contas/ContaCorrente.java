@@ -1,7 +1,7 @@
-package br.gov.caixa;
+package br.gov.caixa.contas;
 
 import java.util.Date;
-import br.gov.caixa.Banco.Transacao;
+import br.gov.caixa.operacoes.Operacao.Transacao;
 
 public class ContaCorrente extends Conta {
     public ContaCorrente(long id, long idUsuario) {
