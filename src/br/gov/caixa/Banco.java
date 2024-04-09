@@ -9,9 +9,9 @@ public class Banco {
     public enum TipoConta {CORRENTE, POUPANCA, INVESTIMENTO}
     public enum Operacao {SAQUE, DEPOSITO, TRANSFERENCIA, INVESTIMENTO, CONSULTA_SALDO}
     private final ArrayList<Usuario> clientes = new ArrayList<>();
-    private final ArrayList<ContaCorrente> contasCorrentes = new ArrayList<>();
-    private final ArrayList<ContaPoupanca> contasPoupancas = new ArrayList<>();
-    private final ArrayList<ContaInvestimento> contasInvestimento = new ArrayList<>();
+    private final ArrayList<Conta> contasCorrentes = new ArrayList<>();
+    private final ArrayList<Conta> contasPoupancas = new ArrayList<>();
+    private final ArrayList<Conta> contasInvestimento = new ArrayList<>();
     public record Transacao(
             Date data,
             Operacao tipo,
@@ -33,7 +33,7 @@ public class Banco {
                             Banco.this.wait(28 * 24 * 3600 * 1000L); // espera 28 dias
                         }
                     } catch (InterruptedException iex) {
-                        iex.printStackTrace();
+                        System.out.println(iex.getMessage());
                     }
                 } else { // se não for o primeiro dia do mês
                     try {
@@ -41,7 +41,7 @@ public class Banco {
                             Banco.this.wait(24 * 3600 * 1000L); // espera um dia
                         }
                     } catch (InterruptedException iex) {
-                        iex.printStackTrace();
+                        System.out.println(iex.getMessage());
                     }
                 }
             }
@@ -60,13 +60,17 @@ public class Banco {
     public ContaPoupanca abrirContaPoupanca(long idCliente) {
         Usuario titular = getUsuario(idCliente);
         if (titular != null) {
-            if (titular.getClassificacao() == Usuario.Tipo.PF) {
-                ContaPoupanca poupanca = new ContaPoupanca(contasPoupancas.size() + 1, idCliente);
-                contasPoupancas.add(poupanca);
-                System.out.printf("Poupança nº %d cadastrada com sucesso!\n", poupanca.getId());
-                return poupanca;
+            if (titular.getStatus() == Usuario.Situacao.ATIVO) {
+                if (titular.getClassificacao() == Usuario.Tipo.PF) {
+                    ContaPoupanca poupanca = new ContaPoupanca(contasPoupancas.size() + 1, idCliente);
+                    contasPoupancas.add(poupanca);
+                    System.out.printf("Poupança nº %d cadastrada com sucesso!\n", poupanca.getId());
+                    return poupanca;
+                } else {
+                    System.out.println("Poupança não disponível para pessoa jurídica");
+                }
             } else {
-                System.out.println("Poupança não disponível para pessoa jurídica");
+                System.out.println("Cliente inativo.");
             }
         } else {
             System.out.println("CPF/CNPJ não cadastrado!");
@@ -76,11 +80,15 @@ public class Banco {
 
     public ContaInvestimento abrirContaInvestimento(long idTitular) {
         Usuario titular = getUsuario(idTitular);
-            if (titular != null) {
-            ContaInvestimento conta = new ContaInvestimento(contasInvestimento.size() + 1, idTitular);
-            contasInvestimento.add(conta);
-            System.out.printf("Conta Investimento nº %d cadastrada com sucesso!\n",  conta.getId());
-            return conta;
+        if (titular != null) {
+            if (titular.getStatus() == Usuario.Situacao.ATIVO) {
+                ContaInvestimento conta = new ContaInvestimento(contasInvestimento.size() + 1, idTitular);
+                contasInvestimento.add(conta);
+                System.out.printf("Conta Investimento nº %d cadastrada com sucesso!\n",  conta.getId());
+                return conta;
+            } else {
+                System.out.println("Cliente inativo.");
+            }
         } else {
             System.out.println("CPF/CNPJ não cadastrado!");
         }
@@ -98,7 +106,7 @@ public class Banco {
                 }
                 Transacao saque = new Transacao(new Date(), Banco.Operacao.SAQUE, valor, valorReal, getUsuario(conta.idUsuario),
                         null, "");
-                if (conta.sacar(saque)) {
+                if (conta.debitar(saque)) {
                     System.out.println("Saque realizado com sucesso!");
                 } else {
                     System.out.println("Saldo insuficiente!");
@@ -116,7 +124,7 @@ public class Banco {
         if (conta != null) {
             if (conta.getStatus() == Conta.Situacao.ATIVA) {
                 Transacao deposito = new Transacao(new Date(), Banco.Operacao.DEPOSITO, valor, valor, null, getUsuario(conta.idUsuario), "");
-                conta.depositar(deposito);
+                conta.creditar(deposito);
                 System.out.println("Depósito realizado com sucesso!");
             } else {
                 System.out.println("Conta inativa!");
@@ -142,8 +150,8 @@ public class Banco {
                         String observacao = tipoDestino == TipoConta.CORRENTE ? "Crédito em Conta Corrente" : "";
                         Transacao transferencia = new Transacao(new Date(), Banco.Operacao.TRANSFERENCIA, valor, valorReal,
                                 getUsuario(contaOrigem.getIdUsuario()), usuarioDestino, observacao);
-                        if (contaOrigem.transferir(transferencia)) {
-                            contaDestino.depositar(transferencia);
+                        if (contaOrigem.debitar(transferencia)) {
+                            contaDestino.creditar(transferencia);
                             System.out.println("Transferência realizada com sucesso!");
                         } else {
                             System.out.println("Saldo insuficiente!");
@@ -183,19 +191,24 @@ public class Banco {
             if (contaOrigem.getStatus() == Conta.Situacao.ATIVA) {
                 Usuario usuario = getUsuario(contaOrigem.getIdUsuario());
                 ContaInvestimento contaDestino = (ContaInvestimento) getConta(usuario, TipoConta.INVESTIMENTO);
-                if (contaDestino == null) {
-                    contaDestino = this.abrirContaInvestimento(usuario.getId());
-                }
-                if (contaDestino.getStatus() == Conta.Situacao.ATIVA) {
-                    Transacao investimento = new Transacao(new Date(), Banco.Operacao.INVESTIMENTO, valor, valor, usuario, usuario,
-                            "");
-                    if (contaOrigem.investir(investimento)) {
-                        contaDestino.depositar(investimento);
+                if (usuario.getStatus() == Usuario.Situacao.ATIVO) {
+                    if (contaDestino == null && contaOrigem.getSaldo() >= valor) {
+                        contaDestino = this.abrirContaInvestimento(usuario.getId());
+                    }
+                    if (contaDestino.getStatus() == Conta.Situacao.ATIVA) {
+                        Transacao investimento = new Transacao(new Date(), Banco.Operacao.INVESTIMENTO, valor, valor,
+                                usuario, usuario, "");
+                        if (contaOrigem.investir(investimento)) {
+                            contaDestino.creditar(investimento);
+                        } else {
+                            System.out.println("Saldo insuficiente!");
+                        }
                     } else {
-                        System.out.println("Saldo insuficiente!");
+                        System.out.println("Conta investimento inativa!");
                     }
                 } else {
-                    System.out.println("Conta investimento inativa!");
+                    contaDestino = null;
+                    System.out.println("Cliente inativo.");
                 }
                 return contaDestino;
             } else {
@@ -209,7 +222,7 @@ public class Banco {
 
     // Procura a conta de um usuário pelo tipo
     public Conta getConta(Usuario titular, TipoConta tipo) {
-        ArrayList<? extends Conta> contas;
+        ArrayList<Conta> contas;
         if (tipo == TipoConta.CORRENTE) {
             contas = this.contasCorrentes;
         } else if (tipo == TipoConta.POUPANCA) {
@@ -227,7 +240,7 @@ public class Banco {
 
     // Procura uma conta pelo número e pelo tipo
     public Conta getConta(long id, TipoConta tipo) {
-        ArrayList<? extends Conta> contas;
+        ArrayList<Conta> contas;
         if (tipo == TipoConta.CORRENTE) {
             contas = this.contasCorrentes;
         } else if (tipo == TipoConta.POUPANCA) {
@@ -254,14 +267,16 @@ public class Banco {
     }
 
     private void creditarRendimentos() {
-        for (ContaInvestimento conta : this.contasInvestimento) {
+        for (Conta conta : this.contasInvestimento) {
             if (conta.getStatus() == Conta.Situacao.ATIVA) {
                 Usuario titular = getUsuario(conta.getIdUsuario());
                 if (titular != null) {
-                    if (titular.getClassificacao() == Usuario.Tipo.PF) {
-                        conta.setSaldo(conta.getSaldo() * 1.01);
-                    } else { // PJ
-                        conta.setSaldo(conta.getSaldo() * 1.02);
+                    if (titular.getStatus() == Usuario.Situacao.ATIVO) {
+                        if (titular.getClassificacao() == Usuario.Tipo.PF) {
+                            conta.setSaldo(conta.getSaldo() * 1.01);
+                        } else { // PJ
+                            conta.setSaldo(conta.getSaldo() * 1.02);
+                        }
                     }
                 } else {
                     System.out.printf("Titular da conta %d não cadastrado!\n", conta.getId());

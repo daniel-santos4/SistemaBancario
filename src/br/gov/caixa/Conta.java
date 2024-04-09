@@ -58,31 +58,21 @@ public class Conta {
         return idUsuario;
     }
 
-    public boolean sacar(Transacao saque) {
-        if (saque.valorPretendido() <= this.saldo) {
-            this.saldo = this.saldo - saque.valorReal();
-            this.historico.add(saque);
+    public boolean debitar(Transacao debito) {
+        if (debito.valorReal() <= this.saldo) {
+            this.saldo = this.saldo - debito.valorReal();
+            this.historico.add(debito);
             this.dataAtualizacao = new Date();
             return true;
         }
         return false;
     }
 
-    public void depositar(Transacao deposito) {
+    public void creditar(Transacao credito) {
         // É creditado o valor pretendido, para que a transferência de PJ seja creditada sem a taxa
-        this.saldo = this.saldo + deposito.valorPretendido();
-        this.historico.add(deposito);
+        this.saldo = this.saldo + credito.valorPretendido();
+        this.historico.add(credito);
         this.dataAtualizacao = new Date();
-    }
-
-    public boolean transferir(Transacao transferencia) {
-        if (transferencia.valorReal() <= this.saldo) {
-            this.saldo = this.saldo - transferencia.valorReal();
-            this.historico.add(transferencia);
-            this.dataAtualizacao = new Date();
-            return true;
-        }
-        return false;
     }
 
     public double consultarSaldo(Transacao consulta) {
