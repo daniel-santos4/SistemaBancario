@@ -12,9 +12,16 @@ public class Banco {
     private final ArrayList<ContaCorrente> contasCorrentes = new ArrayList<>();
     private final ArrayList<ContaPoupanca> contasPoupancas = new ArrayList<>();
     private final ArrayList<ContaInvestimento> contasInvestimento = new ArrayList<>();
-    public record Transacao(Date data, Operacao tipo, double valorPretendido, double valorReal, Usuario usuarioOrigem, Usuario usuarioDestino, String observacao) {
+    public record Transacao(
+            Date data,
+            Operacao tipo,
+            double valorPretendido,
+            double valorReal,
+            Usuario usuarioOrigem,
+            Usuario usuarioDestino,
+            String observacao
+    ) { }
 
-    }
     public Banco() {
         new Thread(() -> {
             while (true) {
@@ -42,7 +49,7 @@ public class Banco {
     }
 
     public ContaCorrente cadastrarUsuario(String cpf_cnpj, String nome) {
-        Usuario novo = new Usuario(cpf_cnpj, nome);
+        Usuario novo = new Cliente(cpf_cnpj, nome);
         this.clientes.add(novo);
         ContaCorrente conta = new ContaCorrente(contasCorrentes.size() + 1, novo.getId());
         contasCorrentes.add(conta);
