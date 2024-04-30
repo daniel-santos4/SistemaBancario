@@ -1,12 +1,12 @@
 package br.gov.caixa;
 
-import java.util.Date;
+import java.time.LocalDate;
 
 public class Cliente implements Usuario {
     private final long id;
     private final Tipo classificacao;
     private String nome;
-    private final Date dataCadastro;
+    private final LocalDate dataCadastro;
     private Situacao status;
 
     public Cliente(String cpf_cnpj, String nome, Tipo classificacao) {
@@ -16,7 +16,7 @@ public class Cliente implements Usuario {
         this.classificacao = classificacao;
         this.id = Long.parseLong(cpf_cnpj);
         this.nome = nome;
-        this.dataCadastro = new Date();
+        this.dataCadastro = LocalDate.now();
         this.status = Situacao.ATIVO;
     }
 
@@ -26,7 +26,7 @@ public class Cliente implements Usuario {
     }
 
     @Override
-    public Date getDataCadastro() {
+    public LocalDate getDataCadastro() {
         return dataCadastro;
     }
 

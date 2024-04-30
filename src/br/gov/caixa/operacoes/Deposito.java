@@ -2,8 +2,7 @@ package br.gov.caixa.operacoes;
 
 import br.gov.caixa.Usuario;
 import br.gov.caixa.contas.Conta;
-
-import java.util.Date;
+import java.time.LocalDate;
 
 public class Deposito implements Operacao {
     private Conta conta;
@@ -19,7 +18,7 @@ public class Deposito implements Operacao {
     @Override
     public boolean executar() {
         this.conta.setSaldo(this.conta.getSaldo() + this.valor);
-        Transacao saque = new Transacao(new Date(), Tipo.DEPOSITO, this.valor, this.valor, this.titular,
+        Transacao saque = new Transacao(LocalDate.now(), Tipo.DEPOSITO, this.valor, this.valor, this.titular,
                 null, "");
         return true;
     }

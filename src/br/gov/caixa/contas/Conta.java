@@ -1,15 +1,16 @@
 package br.gov.caixa.contas;
 
-import java.util.ArrayList;
-import java.util.Date;
 import br.gov.caixa.operacoes.Operacao.Transacao;
+import java.time.LocalDate;
+import java.util.ArrayList;
+
 
 public class Conta {
     public enum Situacao {ATIVA, INATIVA}
     protected final long id;
     protected double saldo;
     protected final ArrayList<Transacao> historico;
-    protected Date dataAtualizacao;
+    protected LocalDate dataAtualizacao;
     protected Situacao status;
     protected final long idUsuario;
 
@@ -17,7 +18,7 @@ public class Conta {
         this.id = id;
         this.saldo = 0.00;
         this.historico = new ArrayList<Transacao>();
-        this.dataAtualizacao = new Date();
+        this.dataAtualizacao = LocalDate.now();
         this.status = Situacao.ATIVA;
         this.idUsuario = idUsuario;
     }
@@ -38,11 +39,11 @@ public class Conta {
         return historico;
     }
 
-    public Date getDataAtualizacao() {
+    public LocalDate getDataAtualizacao() {
         return dataAtualizacao;
     }
 
-    public void setDataAtualizacao(Date dataAtualizacao) {
+    public void setDataAtualizacao(LocalDate dataAtualizacao) {
         this.dataAtualizacao = dataAtualizacao;
     }
 
@@ -62,7 +63,7 @@ public class Conta {
         if (debito.valorReal() <= this.saldo) {
             this.saldo = this.saldo - debito.valorReal();
             this.historico.add(debito);
-            this.dataAtualizacao = new Date();
+            this.dataAtualizacao = LocalDate.now();
             return true;
         }
         return false;
@@ -72,12 +73,12 @@ public class Conta {
         // É creditado o valor pretendido, para que a transferência de PJ seja creditada sem a taxa
         this.saldo = this.saldo + credito.valorPretendido();
         this.historico.add(credito);
-        this.dataAtualizacao = new Date();
+        this.dataAtualizacao = LocalDate.now();
     }
 
     public double consultarSaldo(Transacao consulta) {
         this.historico.add(consulta);
-        this.dataAtualizacao = new Date();
+        this.dataAtualizacao = LocalDate.now();
         return this.saldo;
     }
 }

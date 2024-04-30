@@ -2,9 +2,8 @@ package br.gov.caixa.operacoes;
 
 import br.gov.caixa.Usuario;
 import br.gov.caixa.contas.Conta;
-import br.gov.caixa.contas.ContaCorrente;
+import java.time.LocalDate;
 
-import java.util.Date;
 
 public class Investimento implements Operacao {
     private Conta contaOrigem;
@@ -21,7 +20,7 @@ public class Investimento implements Operacao {
 
     @Override
     public boolean executar() {
-        Transacao transferencia = new Transacao(new Date(), Operacao.Tipo.TRANSFERENCIA, this.valor, this.valor,
+        Transacao transferencia = new Transacao(LocalDate.now(), Operacao.Tipo.TRANSFERENCIA, this.valor, this.valor,
                 this.usuario, this.usuario, "");
         if (this.contaOrigem.debitar(transferencia)) {
             contaDestino.creditar(transferencia);

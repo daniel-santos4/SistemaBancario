@@ -1,7 +1,7 @@
 package br.gov.caixa.contas;
 
-import java.util.Date;
 import br.gov.caixa.operacoes.Operacao.Transacao;
+import java.time.LocalDate;
 
 public class ContaCorrente extends Conta {
     public ContaCorrente(long id, long idUsuario) {
@@ -12,7 +12,7 @@ public class ContaCorrente extends Conta {
         if (investimento.valorReal() <= this.saldo) {
             this.saldo = this.saldo - investimento.valorReal();
             this.historico.add(investimento);
-            this.dataAtualizacao = new Date();
+            this.dataAtualizacao = LocalDate.now();
             return true;
         }
         return false;

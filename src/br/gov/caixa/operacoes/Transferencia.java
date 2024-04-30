@@ -1,11 +1,9 @@
 package br.gov.caixa.operacoes;
 
-import br.gov.caixa.Banco;
 import br.gov.caixa.Usuario;
 import br.gov.caixa.contas.Conta;
 import br.gov.caixa.contas.ContaCorrente;
-
-import java.util.Date;
+import java.time.LocalDate;
 
 public class Transferencia implements Operacao {
     private Conta contaOrigem;
@@ -29,7 +27,7 @@ public class Transferencia implements Operacao {
         if (usuarioOrigem.getClassificacao() == Usuario.Tipo.PJ) {
             valorReal = this.valor * 1.005;
         }
-        Transacao transferencia = new Transacao(new Date(), Operacao.Tipo.TRANSFERENCIA, this.valor, valorReal,
+        Transacao transferencia = new Transacao(LocalDate.now(), Operacao.Tipo.TRANSFERENCIA, this.valor, valorReal,
                 this.usuarioOrigem, this.usuarioDestino, observacao);
         if (this.contaOrigem.debitar(transferencia)) {
             contaDestino.creditar(transferencia);

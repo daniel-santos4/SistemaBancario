@@ -1,12 +1,12 @@
 package br.gov.caixa;
 
-import java.util.Date;
+import java.time.LocalDate;
 
 public interface Usuario {
     public enum Tipo {PF, PJ}
     public enum Situacao {ATIVO, INATIVO}
     public Tipo getClassificacao();
-    public Date getDataCadastro();
+    public LocalDate getDataCadastro();
     public long getId();
     public String getNome();
     public void setNome(String nome);
