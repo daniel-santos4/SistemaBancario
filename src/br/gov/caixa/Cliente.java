@@ -9,15 +9,11 @@ public class Cliente implements Usuario {
     private final Date dataCadastro;
     private Situacao status;
 
-    public Cliente(String cpf_cnpj, String nome) {
+    public Cliente(String cpf_cnpj, String nome, Tipo classificacao) {
         cpf_cnpj = cpf_cnpj.replace(".", "");
         cpf_cnpj = cpf_cnpj.replace("-", "");
         cpf_cnpj = cpf_cnpj.replace("/", "");
-        if (cpf_cnpj.length() > 11) {
-            this.classificacao = Tipo.PJ;
-        } else {
-            this.classificacao = Tipo.PF;
-        }
+        this.classificacao = classificacao;
         this.id = Long.parseLong(cpf_cnpj);
         this.nome = nome;
         this.dataCadastro = new Date();
@@ -61,6 +57,6 @@ public class Cliente implements Usuario {
 
     @Override
     public String toString() {
-        return this.nome;
+        return this.nome + ";" + this.id + ";" + this.classificacao;
     }
 }

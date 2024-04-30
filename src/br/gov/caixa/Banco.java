@@ -3,8 +3,19 @@ package br.gov.caixa;
 import br.gov.caixa.contas.*;
 import br.gov.caixa.operacoes.*;
 
+import javax.swing.text.DateFormatter;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.text.DateFormat;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Formatter;
+import java.util.List;
+import java.util.stream.Stream;
 
 public class Banco {
     public static final Banco CAIXA = new Banco();
@@ -40,8 +51,8 @@ public class Banco {
         }).start();
     }
 
-    public ContaCorrente cadastrarUsuario(String cpf_cnpj, String nome) {
-        Usuario novo = new Cliente(cpf_cnpj, nome);
+    public ContaCorrente cadastrarUsuario(String cpf_cnpj, String nome, Cliente.Tipo classificacao) {
+        Usuario novo = new Cliente(cpf_cnpj, nome, classificacao);
         this.clientes.add(novo);
         ContaCorrente conta = new ContaCorrente(contasCorrentes.size() + 1, novo.getId());
         contasCorrentes.add(conta);
@@ -270,36 +281,31 @@ public class Banco {
     }
 
     public static void main(String[] args) {
-        ContaCorrente contaPF = Banco.CAIXA.cadastrarUsuario("123.456.789-00", "Fulano de Tal");
-        ContaCorrente contaPJ = Banco.CAIXA.cadastrarUsuario("12.345.678/9000-00", "Sociedade Anônima S.A.");
-        ContaPoupanca poupanca = Banco.CAIXA.abrirContaPoupanca(contaPF.getIdUsuario());
-        Banco.CAIXA.depositar(contaPF.getId(), TipoConta.CORRENTE, 200.00);
-        Banco.CAIXA.sacar(contaPF.getId(), TipoConta.CORRENTE, 100.00);
-        Banco.CAIXA.depositar(poupanca.getId(), TipoConta.POUPANCA, 300.00);
-        Banco.CAIXA.sacar(poupanca.getId(), TipoConta.POUPANCA, 250.00);
-        Banco.CAIXA.transferir(contaPF.getId(), TipoConta.CORRENTE, poupanca.getId(), TipoConta.POUPANCA, 50.00);
-        ContaInvestimento investimentoPF = Banco.CAIXA.investir(contaPF.getId(), 50.00);
-        Banco.CAIXA.consultarSaldo(contaPF.getId(), TipoConta.CORRENTE);
-        Banco.CAIXA.consultarSaldo(poupanca.getId(), TipoConta.POUPANCA);
-        Banco.CAIXA.consultarSaldo(investimentoPF.getId(), TipoConta.INVESTIMENTO);
-        Banco.CAIXA.depositar(contaPJ.getId(), TipoConta.CORRENTE, 10000.00);
-        Banco.CAIXA.sacar(contaPJ.getId(), TipoConta.CORRENTE, 1000.00);
-        Banco.CAIXA.consultarSaldo(contaPJ.getId(), TipoConta.CORRENTE);
-        Banco.CAIXA.transferir(contaPJ.getId(), TipoConta.CORRENTE, contaPF.getId(), TipoConta.CORRENTE, 2000.00);
-        Banco.CAIXA.consultarSaldo(contaPF.getId(), TipoConta.CORRENTE);
-        Banco.CAIXA.consultarSaldo(contaPJ.getId(), TipoConta.CORRENTE);
-        ContaInvestimento investimentoPJ = Banco.CAIXA.investir(contaPJ.getId(), 5000.00);
-        Banco.CAIXA.investir(contaPJ.getId(), 1000.00);
-        Banco.CAIXA.consultarSaldo(contaPJ.getId(), TipoConta.CORRENTE);
-        Banco.CAIXA.consultarSaldo(investimentoPJ.getId(), TipoConta.INVESTIMENTO);
-        investimentoPF.setStatus(Conta.Situacao.INATIVA);
-        // Método sendo chamado aqui apenas pra teste. Deve ser chamado apenas na thread do construtor
-        Banco.CAIXA.creditarRendimentos();
-        Banco.CAIXA.consultarSaldo(investimentoPF.getId(), TipoConta.INVESTIMENTO);
-        System.out.println(investimentoPF.getSaldo());
-        Banco.CAIXA.consultarSaldo(investimentoPJ.getId(), TipoConta.INVESTIMENTO);
-        for (Operacao.Transacao registro: contaPF.getHistorico()) {
-            System.out.println(registro);
+        Path caminho = Path.of("pessoas.csv");
+        try {
+            Stream<String> linhas = Files.lines(caminho);
+            List<String> lista = linhas.skip(1)
+                    .map(linha -> linha.split(","))
+                    .filter(colunas -> {
+                        if ("2".equals(colunas[3])) {
+                            DateTimeFormatter dtf = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+                            LocalDate nascimento = LocalDate.parse(colunas[1], dtf);
+                            return ChronoUnit.YEARS.between(nascimento, LocalDate.now()) >= 18;
+                        }
+                        return true;
+                    })
+                    .map(colunas -> Banco.CAIXA.cadastrarUsuario(colunas[2], colunas[0], colunas[3].equals("2") ? Usuario.Tipo.PF : Usuario.Tipo.PJ))
+                    .map(conta -> {
+                        Banco.CAIXA.depositar(conta.getId(), TipoConta.CORRENTE, 50.0);
+                        return conta;
+                    })
+                    .map(conta-> Banco.CAIXA.getUsuario(conta.getIdUsuario()) + ";" + conta.getId() + ";" + conta.getSaldo())
+                    .toList();
+            Path saida = Path.of("saida.csv");
+            Files.write(saida, lista);
+        } catch (IOException e) {
+            System.out.println("Não foi possível abrir o arquivo pessoas.csv");
+            e.printStackTrace();
         }
     }
 }
