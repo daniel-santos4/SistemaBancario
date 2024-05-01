@@ -1,4 +1,4 @@
-package br.gov.caixa;
+package br.gov.caixa.clientes;
 
 import java.time.LocalDate;
 

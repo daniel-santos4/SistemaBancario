@@ -1,6 +1,6 @@
 package br.gov.caixa.operacoes;
 
-import br.gov.caixa.Usuario;
+import br.gov.caixa.clientes.Usuario;
 import br.gov.caixa.contas.Conta;
 import java.time.LocalDate;
 

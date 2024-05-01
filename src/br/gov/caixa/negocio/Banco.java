@@ -1,26 +1,26 @@
-package br.gov.caixa;
+package br.gov.caixa.negocio;
 
+import br.gov.caixa.clientes.Cliente;
+import br.gov.caixa.clientes.Usuario;
 import br.gov.caixa.contas.*;
 import br.gov.caixa.operacoes.*;
 
-import javax.swing.text.DateFormatter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.text.DateFormat;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Formatter;
 import java.util.List;
 import java.util.stream.Stream;
 
 public class Banco {
     public static final Banco CAIXA = new Banco();
     public enum TipoConta {CORRENTE, POUPANCA, INVESTIMENTO}
-    private final ArrayList<Usuario> clientes = new ArrayList<>();
+    private IGerenciadorClientes gerenciadorClientes = new GerenciadorClientes();
+    //TODO Criar a classe GerenciadorContas e classes de validação
     private final ArrayList<Conta> contasCorrentes = new ArrayList<>();
     private final ArrayList<Conta> contasPoupancas = new ArrayList<>();
     private final ArrayList<Conta> contasInvestimento = new ArrayList<>();
@@ -29,8 +29,9 @@ public class Banco {
         new Thread(() -> {
             while (true) {
                 Calendar hoje = Calendar.getInstance();
+                IGerenciadorInvestimentos gerenciadorInvestimentos = new GerenciadorInvestimentos();
                 if (hoje.get(Calendar.DAY_OF_MONTH) == 1) {
-                    creditarRendimentos();
+                    gerenciadorInvestimentos.creditarRendimentos(this.contasInvestimento);
                     try {
                         synchronized (this) {
                             Banco.this.wait(28 * 24 * 3600 * 1000L); // espera 28 dias
@@ -52,16 +53,15 @@ public class Banco {
     }
 
     public ContaCorrente cadastrarUsuario(String cpf_cnpj, String nome, Cliente.Tipo classificacao) {
-        Usuario novo = new Cliente(cpf_cnpj, nome, classificacao);
-        this.clientes.add(novo);
-        ContaCorrente conta = new ContaCorrente(contasCorrentes.size() + 1, novo.getId());
+        Usuario cliente = this.gerenciadorClientes.cadastrarUsuario(cpf_cnpj, nome, classificacao);
+        ContaCorrente conta = new ContaCorrente(contasCorrentes.size() + 1, cliente.getId());
         contasCorrentes.add(conta);
         System.out.printf("Cliente cadastrado com sucesso! Conta corrente nº: %d\n",  conta.getId());
         return conta;
     }
 
     public ContaPoupanca abrirContaPoupanca(long idCliente) {
-        Usuario titular = getUsuario(idCliente);
+        Usuario titular = this.gerenciadorClientes.getUsuario(idCliente);
         if (titular != null) {
             if (titular.getStatus() == Usuario.Situacao.ATIVO) {
                 if (titular.getClassificacao() == Usuario.Tipo.PF) {
@@ -82,7 +82,7 @@ public class Banco {
     }
 
     public ContaInvestimento abrirContaInvestimento(long idTitular) {
-        Usuario titular = getUsuario(idTitular);
+        Usuario titular = this.gerenciadorClientes.getUsuario(idTitular);
         if (titular != null) {
             if (titular.getStatus() == Usuario.Situacao.ATIVO) {
                 ContaInvestimento conta = new ContaInvestimento(contasInvestimento.size() + 1, idTitular);
@@ -102,7 +102,7 @@ public class Banco {
         Conta conta = getConta(idConta, tipo);
         if (conta != null) {
             if (conta.getStatus() == Conta.Situacao.ATIVA) {
-                Usuario titular = getUsuario(conta.getIdUsuario());
+                Usuario titular = this.gerenciadorClientes.getUsuario(conta.getIdUsuario());
                 Saque saque = new Saque(conta, valor, titular);
                 if (saque.executar()) {
                     System.out.println("Saque realizado com sucesso!");
@@ -121,7 +121,7 @@ public class Banco {
         Conta conta = getConta(idConta, tipo);
         if (conta != null) {
             if (conta.getStatus() == Conta.Situacao.ATIVA) {
-                Deposito deposito = new Deposito(conta, valor, getUsuario(conta.getIdUsuario()));
+                Deposito deposito = new Deposito(conta, valor, this.gerenciadorClientes.getUsuario(conta.getIdUsuario()));
                 deposito.executar();
                 System.out.println("Depósito realizado com sucesso!");
             } else {
@@ -139,8 +139,8 @@ public class Banco {
         if (contaOrigem != null && contaDestino != null) {
             if (contaOrigem.getStatus() == Conta.Situacao.ATIVA) {
                 if (contaDestino.getStatus() == Conta.Situacao.ATIVA) {
-                    Usuario usuarioOrigem = getUsuario(contaOrigem.getIdUsuario());
-                    Usuario usuarioDestino = getUsuario(contaDestino.getIdUsuario());
+                    Usuario usuarioOrigem = this.gerenciadorClientes.getUsuario(contaOrigem.getIdUsuario());
+                    Usuario usuarioDestino = this.gerenciadorClientes.getUsuario(contaDestino.getIdUsuario());
 
                     if (usuarioDestino != null && usuarioDestino.getStatus() == Usuario.Situacao.ATIVO) {
                         Transferencia transferencia = new Transferencia(contaOrigem, contaDestino, valor, usuarioOrigem, usuarioDestino);
@@ -167,7 +167,7 @@ public class Banco {
         Conta conta = getConta(id, tipo);
         if (conta != null) {
             if (conta.getStatus() == Conta.Situacao.ATIVA) {
-                Consulta consulta = new Consulta(conta, getUsuario(conta.getIdUsuario()));
+                Consulta consulta = new Consulta(conta, this.gerenciadorClientes.getUsuario(conta.getIdUsuario()));
                 consulta.executar();
                 System.out.printf("Saldo: R$ %.2f\n", conta.getSaldo());
             } else {
@@ -183,7 +183,7 @@ public class Banco {
         if (contaOrigem != null) {
             if (contaOrigem.getSaldo() >= valor) {
                 if (contaOrigem.getStatus() == Conta.Situacao.ATIVA) {
-                    Usuario usuario = getUsuario(contaOrigem.getIdUsuario());
+                    Usuario usuario = this.gerenciadorClientes.getUsuario(contaOrigem.getIdUsuario());
                     ContaInvestimento contaDestino = (ContaInvestimento) getConta(usuario, TipoConta.INVESTIMENTO);
                     if (usuario.getStatus() == Usuario.Situacao.ATIVO) {
                         if (contaDestino == null) {
@@ -251,37 +251,8 @@ public class Banco {
         return null;
     }
 
-    //Procura um cliente pelo CPF/CNPJ
-    public Usuario getUsuario(long id) {
-        for (Usuario cliente : this.clientes) {
-            if (cliente.getId() == id) {
-                return cliente;
-            }
-        }
-        return null;
-    }
-
-    private void creditarRendimentos() {
-        for (Conta conta : this.contasInvestimento) {
-            if (conta.getStatus() == Conta.Situacao.ATIVA) {
-                Usuario titular = getUsuario(conta.getIdUsuario());
-                if (titular != null) {
-                    if (titular.getStatus() == Usuario.Situacao.ATIVO) {
-                        if (titular.getClassificacao() == Usuario.Tipo.PF) {
-                            conta.setSaldo(conta.getSaldo() * 1.01);
-                        } else { // PJ
-                            conta.setSaldo(conta.getSaldo() * 1.02);
-                        }
-                    }
-                } else {
-                    System.out.printf("Titular da conta %d não cadastrado!\n", conta.getId());
-                }
-            }
-        }
-    }
-
-    public static void main(String[] args) {
-        Path caminho = Path.of("pessoas.csv");
+    public static void executarCampanhaMarketing(String caminhoCSV) {
+        Path caminho = Path.of(caminhoCSV);
         try {
             Stream<String> linhas = Files.lines(caminho);
             List<String> lista = linhas.skip(1)
@@ -294,18 +265,25 @@ public class Banco {
                         }
                         return true;
                     })
-                    .map(colunas -> Banco.CAIXA.cadastrarUsuario(colunas[2], colunas[0], colunas[3].equals("2") ? Usuario.Tipo.PF : Usuario.Tipo.PJ))
-                    .map(conta -> {
-                        Banco.CAIXA.depositar(conta.getId(), TipoConta.CORRENTE, 50.0);
-                        return conta;
-                    })
-                    .map(conta-> Banco.CAIXA.getUsuario(conta.getIdUsuario()) + ";" + conta.getId() + ";" + conta.getSaldo())
+                    .map(colunas -> Banco.CAIXA.cadastrarUsuario(colunas[2], colunas[0],
+                            "2".equals(colunas[3]) ? Usuario.Tipo.PF : Usuario.Tipo.PJ))
+                    .peek(conta -> Banco.CAIXA.depositar(conta.getId(), TipoConta.CORRENTE, 50.0))
+                    .map(conta-> Banco.CAIXA.getUsuario(conta.getIdUsuario()) + ";" +
+                            conta.getId() + ";" + conta.getSaldo())
                     .toList();
             Path saida = Path.of("saida.csv");
             Files.write(saida, lista);
         } catch (IOException e) {
-            System.out.println("Não foi possível abrir o arquivo pessoas.csv");
+            System.out.println("Não foi possível abrir o arquivo " + caminhoCSV);
             e.printStackTrace();
         }
+    }
+
+    public Usuario getUsuario(long idUsuario) {
+        return this.gerenciadorClientes.getUsuario(idUsuario);
+    }
+
+    public static void main(String[] args) {
+        executarCampanhaMarketing("pessoas.csv");
     }
 }
